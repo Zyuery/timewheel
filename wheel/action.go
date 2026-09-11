@@ -37,11 +37,18 @@ func (w *TimeWheel) handle() {
 
 }
 
-func (w *TimeWheel) addTask(task *taskElement) {
-
+func (w *TimeWheel) RemoveTask(key string) {
+	w.removeTaskCh <- key
 }
 
 func (w *TimeWheel) removeTask(key string) {
+	element, ok := w.keyToETask[key]
+	if !ok {
+		return
+	}
+	task, _ := element.Value.(*taskElement)
+	delete(w.keyToETask, key)
+	w.slots[task.pos].Remove(element)
 }
 
 func (w *TimeWheel) AddTask(key string, task func(), executeAt time.Time) {
@@ -63,4 +70,14 @@ func (w *TimeWheel) getPosAndCycle(executeAt time.Time) (pos, cycle int) {
 
 func (w *TimeWheel) now() time.Time {
 	return time.Now()
+}
+
+func (w *TimeWheel) addTask(task *taskElement) {
+	if task == nil {
+		return
+	}
+	if _, ok := w.keyToETask[task.key]; ok {
+		w.removeTask(task.key)
+	}
+	w.keyToETask[task.key] = w.slots[task.pos].PushBack(task)
 }
