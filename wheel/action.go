@@ -6,9 +6,10 @@ import (
 )
 
 func (w *TimeWheel) run() {
+	defer w.Stop()
 	defer func() {
 		if r := recover(); r != nil {
-			w.ticker.Stop()
+			//
 		}
 	}()
 	for {
@@ -21,7 +22,6 @@ func (w *TimeWheel) run() {
 			w.addTask(task)
 		case key := <-w.removeTaskCh:
 			w.removeTask(key)
-		default:
 		}
 	}
 }
@@ -43,29 +43,28 @@ func (w *TimeWheel) handle() {
 }
 
 func (w *TimeWheel) execute(l *list.List) {
-	for e := l.Front(); e != nil; e = e.Next() {
+	for e := l.Front(); e != nil; {
+		next := e.Next()
 		task, _ := e.Value.(*taskElement)
-		task.cycle--
 		if task.cycle > 0 {
-			continue
+			task.cycle--
+		} else {
+			w.removeTask(task.key)
+			go func(task *taskElement) {
+				defer func() {
+					if r := recover(); r != nil {
+						//
+					}
+				}()
+				task.fn()
+			}(task)
 		}
-		go func() {
-			defer func() {
-				if r := recover(); r != nil {
-					w.removeTask(task.key)
-				}
-			}()
-			task.fn()
-		}()
+		e = next
 	}
 }
 
 func (w *TimeWheel) cursorIncr() {
 	w.curSlot = (w.curSlot + 1) % len(w.slots)
-}
-
-func (w *TimeWheel) RemoveTask(key string) {
-	w.removeTaskCh <- key
 }
 
 func (w *TimeWheel) removeTask(key string) {
@@ -78,18 +77,11 @@ func (w *TimeWheel) removeTask(key string) {
 	w.slots[task.pos].Remove(element)
 }
 
-func (w *TimeWheel) AddTask(key string, task func(), executeAt time.Time) {
-	pos, cycle := w.getPosAndCycle(executeAt)
-	w.addTaskCh <- &taskElement{
-		key:   key,
-		fn:    task,
-		pos:   pos,
-		cycle: cycle,
-	}
-}
-
 func (w *TimeWheel) getPosAndCycle(executeAt time.Time) (pos, cycle int) {
 	delay := executeAt.Sub(w.now())
+	if delay <= 0 {
+		return w.curSlot, 0
+	}
 	cycle = int(delay / (time.Duration(len(w.slots)) * w.interval))
 	pos = (w.curSlot + int(delay/w.interval)) % len(w.slots)
 	return

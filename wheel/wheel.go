@@ -35,17 +35,20 @@ func WithInterval(interval time.Duration) Option {
 
 func WithSlotNum(slotNum int) Option {
 	return func(tw *TimeWheel) {
-		tw.slots = make([]*list.List, 0, slotNum)
+		tw.slots = make([]*list.List, slotNum)
 	}
 }
 
 func NewTimeWheel(options ...Option) *TimeWheel {
 	wheel := &TimeWheel{
 		interval: time.Second,
-		slots:    make([]*list.List, 0, 10),
+		slots:    make([]*list.List, 10),
 	}
 	for _, option := range options {
 		option(wheel)
+	}
+	if len(wheel.slots) == 0 {
+		panic("len of slots can not be zero!")
 	}
 	wheel.ticker = time.NewTicker(wheel.interval)
 	wheel.stopCh = make(chan struct{})
