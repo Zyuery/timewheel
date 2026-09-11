@@ -1,6 +1,9 @@
 package wheel
 
-import "time"
+import (
+	"container/list"
+	"time"
+)
 
 func (w *TimeWheel) run() {
 	defer func() {
@@ -34,7 +37,31 @@ func (w *TimeWheel) tick() {
 }
 
 func (w *TimeWheel) handle() {
+	elist := w.slots[w.curSlot]
+	defer w.cursorIncr()
+	w.execute(elist)
+}
 
+func (w *TimeWheel) execute(l *list.List) {
+	for e := l.Front(); e != nil; e = e.Next() {
+		task, _ := e.Value.(*taskElement)
+		task.cycle--
+		if task.cycle > 0 {
+			continue
+		}
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					w.removeTask(task.key)
+				}
+			}()
+			task.fn()
+		}()
+	}
+}
+
+func (w *TimeWheel) cursorIncr() {
+	w.curSlot = (w.curSlot + 1) % len(w.slots)
 }
 
 func (w *TimeWheel) RemoveTask(key string) {
@@ -55,7 +82,7 @@ func (w *TimeWheel) AddTask(key string, task func(), executeAt time.Time) {
 	pos, cycle := w.getPosAndCycle(executeAt)
 	w.addTaskCh <- &taskElement{
 		key:   key,
-		task:  task,
+		fn:    task,
 		pos:   pos,
 		cycle: cycle,
 	}

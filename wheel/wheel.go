@@ -19,7 +19,7 @@ type TimeWheel struct {
 }
 
 type taskElement struct {
-	task  func()
+	fn    func()
 	pos   int //环形数组索引位置
 	cycle int //curSlot还要扫几轮
 	key   string
